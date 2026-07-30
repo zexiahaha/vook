@@ -2,116 +2,29 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 
 // ────────────────────────────────────────
-// PDF Viewer Provider
+// Shared state
 // ────────────────────────────────────────
 
-class PdfViewerProvider implements vscode.CustomReadonlyEditorProvider {
+let currentPdfUri: vscode.Uri | null = null;
+let currentPdfName: string = '';
 
-  constructor(private readonly context: vscode.ExtensionContext) { }
+// ────────────────────────────────────────
+// Shared: build HTML for a webview
+// ────────────────────────────────────────
 
-  async openCustomDocument(uri: vscode.Uri): Promise<vscode.CustomDocument> {
-    return { uri, dispose: () => { } };
-  }
+function buildHtml(webview: vscode.Webview, context: vscode.ExtensionContext, mode: 'editor' | 'panel'): string {
+  const mediaDir = vscode.Uri.joinPath(context.extensionUri, 'media');
+  const cmapsDir = vscode.Uri.joinPath(context.extensionUri, 'cmaps');
 
-  async resolveCustomEditor(
-    document: vscode.CustomDocument,
-    webviewPanel: vscode.WebviewPanel
-  ): Promise<void> {
-    const webview = webviewPanel.webview;
+  const pdfJsUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaDir, 'pdf.mjs'));
+  const pdfWorkerUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaDir, 'pdf.worker.mjs'));
+  const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaDir, 'style.css'));
+  const readerUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaDir, 'reader.js'));
+  const cmapUri = webview.asWebviewUri(cmapsDir);
 
-    // ── Webview options ──────────────────
-    webview.options = {
-      enableScripts: true,
-      localResourceRoots: [
-        vscode.Uri.joinPath(this.context.extensionUri, 'media'),
-        vscode.Uri.joinPath(this.context.extensionUri, 'cmaps'),
-      ]
-    };
+  const cspSource = webview.cspSource;
 
-    // ── Build HTML with injected URIs ────
-    webview.html = this.buildHtml(webview);
-
-    // ── Listen for messages from webview ─
-    webview.onDidReceiveMessage(async (msg: PdfMessage) => {
-      switch (msg.type) {
-
-        // User clicked 📂 → open system file picker
-        case 'openFile': {
-          const result = await vscode.window.showOpenDialog({
-            canSelectMany: false,
-            filters: { 'PDF Files': ['pdf'] },
-            title: 'Open PDF with Vook'
-          });
-          if (result && result[0]) {
-            await vscode.commands.executeCommand(
-              'vscode.openWith', result[0], 'vook.pdfViewer'
-            );
-          }
-          break;
-        }
-
-        // User adjusted params → persist to VS Code config
-        case 'saveConfig': {
-          const config = vscode.workspace.getConfiguration('vook');
-          for (const [key, value] of Object.entries(msg.config)) {
-            await config.update(key, value, vscode.ConfigurationTarget.Global);
-          }
-          break;
-        }
-
-        // User toggled dark mode → persist state
-        case 'setDarkMode': {
-          const config = vscode.workspace.getConfiguration('vook');
-          await config.update('darkMode.enabled', msg.enabled, vscode.ConfigurationTarget.Global);
-          break;
-        }
-
-        // Webview ready → read PDF binary + send config
-        case 'ready': {
-          const config = vscode.workspace.getConfiguration('vook');
-          // Send config first so UI initializes early
-          webview.postMessage({
-            type: 'initConfig',
-            config: this.serializeConfig(config)
-          });
-          // Read file binary, base64-encode, send to webview
-          try {
-            const pdfData = await vscode.workspace.fs.readFile(document.uri);
-            const base64 = this.uint8ToBase64(pdfData);
-            webview.postMessage({
-              type: 'openPdfData',
-              data: base64,
-              name: path.basename(document.uri.fsPath)
-            });
-          } catch (err) {
-            webview.postMessage({
-              type: 'error',
-              message: 'Failed to read PDF file: ' + String(err)
-            });
-          }
-          break;
-        }
-      }
-    });
-
-    // ── Update tab title ───────────────────
-    webviewPanel.title = path.basename(document.uri.fsPath);
-  }
-
-  // ── Build webview HTML ──────────────────
-  private buildHtml(webview: vscode.Webview): string {
-    const mediaDir = vscode.Uri.joinPath(this.context.extensionUri, 'media');
-    const cmapsDir = vscode.Uri.joinPath(this.context.extensionUri, 'cmaps');
-
-    const pdfJsUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaDir, 'pdf.mjs'));
-    const pdfWorkerUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaDir, 'pdf.worker.mjs'));
-    const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaDir, 'style.css'));
-    const readerUri = webview.asWebviewUri(vscode.Uri.joinPath(mediaDir, 'reader.js'));
-    const cmapUri = webview.asWebviewUri(cmapsDir);
-
-    const cspSource = webview.cspSource;
-
-    return `<!DOCTYPE html>
+  return `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -190,15 +103,20 @@ class PdfViewerProvider implements vscode.CustomReadonlyEditorProvider {
     </div>
 
     <button id="confirm-btn">Apply</button>
-    <button id="reset-btn">Reset</button>
+    <button id="reset-btn">Revert</button>
   </div>
 
   <div class="bottom-bar">
+    <button id="magnifier-toggle" title="Toggle Magnifier (click then hover over PDF)">🔍</button>
     <button id="toggle-mode">🌙 Dark Mode</button>
     <button id="prev-page">◀ Prev</button>
     <input type="text" id="page-input" value="1">
     <button id="next-page">Next ▶</button>
     <span id="total">/0</span>
+  </div>
+
+  <div id="magnifier" style="display:none">
+    <canvas id="magnifier-canvas" width="160" height="160"></canvas>
   </div>
 
   <script>
@@ -207,38 +125,240 @@ class PdfViewerProvider implements vscode.CustomReadonlyEditorProvider {
     window.__pdfJsSrc = ${JSON.stringify(pdfJsUri.toString())};
     window.__pdfWorkerSrc = ${JSON.stringify(pdfWorkerUri.toString())};
     window.__cmapUrl = ${JSON.stringify(cmapUri.toString() + '/')};
+    window.__vookMode = ${JSON.stringify(mode)};
   </script>
   <script type="module" src="${pdfJsUri}"></script>
   <script src="${readerUri}"></script>
 </body>
 </html>`;
-  }
+}
 
-  // ── Serialize VS Code config to flat key-value ─
-  private serializeConfig(config: vscode.WorkspaceConfiguration): Record<string, unknown> {
-    return {
-      scale: config.get('scale', 2.0),
-      marginLeft: config.get('marginLeft', -1),
-      darkModeEnabled: config.get('darkMode.enabled', true),
-      bodyBackground: config.get('darkMode.bodyBackground', '#0c0c0c'),
-      canvasBackground: config.get('darkMode.canvasBackground', '#1a1a1a'),
-      invert: config.get('darkMode.invert', 80),
-      hue: config.get('darkMode.hue', 180),
-      grayscale: config.get('darkMode.grayscale', 10),
-      brightness: config.get('darkMode.brightness', 85),
-      contrast: config.get('darkMode.contrast', 90),
-      fontOpacity: config.get('darkMode.fontOpacity', 1.0),
-    };
-  }
+// ────────────────────────────────────────
+// Shared: message handler
+// ────────────────────────────────────────
 
-  // ── Uint8Array → base64 ─────────────────
-  private uint8ToBase64(data: Uint8Array): string {
-    let binary = '';
-    const len = data.length;
-    for (let i = 0; i < len; i++) {
-      binary += String.fromCharCode(data[i]);
+async function handleMessage(
+  msg: PdfMessage,
+  webview: vscode.Webview,
+  documentUri: vscode.Uri | undefined,
+  loadPdfCallback?: (uri: vscode.Uri) => Promise<void>
+) {
+  switch (msg.type) {
+
+    case 'openFile': {
+      const result = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        filters: { 'PDF Files': ['pdf'] },
+        title: 'Open PDF with Vook'
+      });
+      if (result && result[0]) {
+        currentPdfUri = result[0];
+        currentPdfName = path.basename(result[0].fsPath);
+        await vscode.commands.executeCommand(
+          'vscode.openWith', result[0], 'vook.pdfViewer'
+        );
+      }
+      break;
     }
-    return btoa(binary);
+
+    case 'saveConfig': {
+      const config = vscode.workspace.getConfiguration('vook');
+      for (const [key, value] of Object.entries(msg.config)) {
+        await config.update(key, value, vscode.ConfigurationTarget.Global);
+      }
+      break;
+    }
+
+    case 'setDarkMode': {
+      const config = vscode.workspace.getConfiguration('vook');
+      await config.update('darkMode.enabled', msg.enabled, vscode.ConfigurationTarget.Global);
+      break;
+    }
+
+    case 'ready': {
+      const config = vscode.workspace.getConfiguration('vook');
+      webview.postMessage({
+        type: 'initConfig',
+        config: serializeConfig(config)
+      });
+
+      // Determine which URI to load
+      const uriToLoad = documentUri || currentPdfUri;
+      if (uriToLoad) {
+        try {
+          const pdfData = await vscode.workspace.fs.readFile(uriToLoad);
+          const base64 = uint8ToBase64(pdfData);
+          webview.postMessage({
+            type: 'openPdfData',
+            data: base64,
+            name: path.basename(uriToLoad.fsPath)
+          });
+        } catch (err) {
+          webview.postMessage({
+            type: 'error',
+            message: 'Failed to read PDF file: ' + String(err)
+          });
+        }
+      }
+      break;
+    }
+
+    case 'reportPage': {
+      currentPdfUri = msg.uri ? vscode.Uri.parse(msg.uri) : currentPdfUri;
+      break;
+    }
+  }
+}
+
+// ────────────────────────────────────────
+// Shared: config serialization
+// ────────────────────────────────────────
+
+function serializeConfig(config: vscode.WorkspaceConfiguration): Record<string, unknown> {
+  return {
+    scale: config.get('scale', 2.0),
+    marginLeft: config.get('marginLeft', -1),
+    darkModeEnabled: config.get('darkMode.enabled', true),
+    bodyBackground: config.get('darkMode.bodyBackground', '#0c0c0c'),
+    canvasBackground: config.get('darkMode.canvasBackground', '#1a1a1a'),
+    invert: config.get('darkMode.invert', 80),
+    hue: config.get('darkMode.hue', 180),
+    grayscale: config.get('darkMode.grayscale', 10),
+    brightness: config.get('darkMode.brightness', 85),
+    contrast: config.get('darkMode.contrast', 90),
+    fontOpacity: config.get('darkMode.fontOpacity', 1.0),
+    magnifierZoomLevel: config.get('magnifier.zoomLevel', 2.5),
+  };
+}
+
+// ────────────────────────────────────────
+// Shared: panel label from config
+// ────────────────────────────────────────
+
+function getPanelLabel(): string {
+  const config = vscode.workspace.getConfiguration('vook');
+  return config.get('panelLabel', 'TODO');
+}
+
+// ────────────────────────────────────────
+// Shared: Uint8Array → base64
+// ────────────────────────────────────────
+
+function uint8ToBase64(data: Uint8Array): string {
+  let binary = '';
+  const len = data.length;
+  for (let i = 0; i < len; i++) {
+    binary += String.fromCharCode(data[i]);
+  }
+  return btoa(binary);
+}
+
+// ────────────────────────────────────────
+// Editor Provider (full-screen mode)
+// ────────────────────────────────────────
+
+class PdfViewerProvider implements vscode.CustomReadonlyEditorProvider {
+
+  constructor(private readonly context: vscode.ExtensionContext) { }
+
+  async openCustomDocument(uri: vscode.Uri): Promise<vscode.CustomDocument> {
+    return { uri, dispose: () => { } };
+  }
+
+  async resolveCustomEditor(
+    document: vscode.CustomDocument,
+    webviewPanel: vscode.WebviewPanel
+  ): Promise<void> {
+    const webview = webviewPanel.webview;
+
+    webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(this.context.extensionUri, 'media'),
+        vscode.Uri.joinPath(this.context.extensionUri, 'cmaps'),
+      ]
+    };
+
+    webview.html = buildHtml(webview, this.context, 'editor');
+
+    webview.onDidReceiveMessage(async (msg: PdfMessage) => {
+      await handleMessage(msg, webview, document.uri);
+    });
+
+    currentPdfUri = document.uri;
+    currentPdfName = path.basename(document.uri.fsPath);
+    webviewPanel.title = currentPdfName;
+  }
+}
+
+// ────────────────────────────────────────
+// Panel Provider (sidebar mode)
+// ────────────────────────────────────────
+
+class PdfPanelProvider implements vscode.WebviewViewProvider {
+
+  private _view: vscode.WebviewView | null = null;
+
+  constructor(private readonly context: vscode.ExtensionContext) { }
+
+  resolveWebviewView(
+    webviewView: vscode.WebviewView,
+    _context: vscode.WebviewViewResolveContext,
+    _token: vscode.CancellationToken
+  ): void {
+    this._view = webviewView;
+    const webview = webviewView.webview;
+
+    webview.options = {
+      enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(this.context.extensionUri, 'media'),
+        vscode.Uri.joinPath(this.context.extensionUri, 'cmaps'),
+      ]
+    };
+
+    webview.html = buildHtml(webview, this.context, 'panel');
+
+    webviewView.title = getPanelLabel();
+    webviewView.description = '';
+
+    webview.onDidReceiveMessage(async (msg: PdfMessage) => {
+      await handleMessage(msg, webview, currentPdfUri || undefined);
+    });
+  }
+
+  async loadPdf(uri: vscode.Uri): Promise<void> {
+    if (!this._view) { return; }
+
+    currentPdfUri = uri;
+    currentPdfName = path.basename(uri.fsPath);
+    this._view.title = getPanelLabel();
+    this._view.description = '';
+
+    try {
+      const pdfData = await vscode.workspace.fs.readFile(uri);
+      const base64 = uint8ToBase64(pdfData);
+      const config = vscode.workspace.getConfiguration('vook');
+      this._view.webview.postMessage({
+        type: 'initConfig',
+        config: serializeConfig(config)
+      });
+      this._view.webview.postMessage({
+        type: 'openPdfData',
+        data: base64,
+        name: currentPdfName
+      });
+    } catch (err) {
+      this._view.webview.postMessage({
+        type: 'error',
+        message: 'Failed to read PDF file: ' + String(err)
+      });
+    }
+  }
+
+  /** Expose the underlying view for focus commands */
+  get view(): vscode.WebviewView | null {
+    return this._view;
   }
 }
 
@@ -250,15 +370,18 @@ type PdfMessage =
   | { type: 'ready' }
   | { type: 'openFile' }
   | { type: 'saveConfig'; config: Record<string, unknown> }
-  | { type: 'setDarkMode'; enabled: boolean };
+  | { type: 'setDarkMode'; enabled: boolean }
+  | { type: 'reportPage'; uri: string; page: number };
 
 // ────────────────────────────────────────
 // Extension activation
 // ────────────────────────────────────────
 
+let panelProvider: PdfPanelProvider;
+
 export function activate(context: vscode.ExtensionContext) {
 
-  // Register PDF custom editor provider
+  // ── Editor mode ──────────────────────────
   context.subscriptions.push(
     vscode.window.registerCustomEditorProvider(
       'vook.pdfViewer',
@@ -270,7 +393,19 @@ export function activate(context: vscode.ExtensionContext) {
     )
   );
 
-  // Register "Open PDF" command
+  // ── Panel mode ───────────────────────────
+  panelProvider = new PdfPanelProvider(context);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      'vook.pdfPanel',
+      panelProvider,
+      {
+        webviewOptions: { retainContextWhenHidden: true }
+      }
+    )
+  );
+
+  // ── Command: Open PDF ────────────────────
   context.subscriptions.push(
     vscode.commands.registerCommand('vook.openPdf', async (fileUri?: vscode.Uri) => {
       let targetUri = fileUri;
@@ -283,9 +418,71 @@ export function activate(context: vscode.ExtensionContext) {
         if (!result || !result[0]) { return; }
         targetUri = result[0];
       }
+      currentPdfUri = targetUri;
+      currentPdfName = path.basename(targetUri.fsPath);
       await vscode.commands.executeCommand(
         'vscode.openWith', targetUri, 'vook.pdfViewer'
       );
+    })
+  );
+
+  // ── Command: Switch to panel ─────────────
+  context.subscriptions.push(
+    vscode.commands.registerCommand('vook.switchToPanel', async () => {
+      if (!currentPdfUri) {
+        vscode.window.showWarningMessage('Vook: No PDF is currently open.');
+        return;
+      }
+
+      // Close the active editor if it's showing this PDF
+      const tabs = vscode.window.tabGroups.all.flatMap(g => g.tabs);
+      for (const tab of tabs) {
+        const input = tab.input;
+        if (input && typeof input === 'object' && 'uri' in input) {
+          const tabInput = input as { uri?: vscode.Uri };
+          if (tabInput.uri && tabInput.uri.fsPath === currentPdfUri.fsPath) {
+            await vscode.window.tabGroups.close(tab);
+            break;
+          }
+        }
+      }
+
+      // Focus the panel view and load the PDF
+      await vscode.commands.executeCommand('vook.pdfPanel.focus');
+      await panelProvider.loadPdf(currentPdfUri);
+    })
+  );
+
+  // ── Command: Switch to editor ────────────
+  context.subscriptions.push(
+    vscode.commands.registerCommand('vook.switchToEditor', async () => {
+      if (!currentPdfUri) {
+        vscode.window.showWarningMessage('Vook: No PDF is currently open.');
+        return;
+      }
+
+      await vscode.commands.executeCommand(
+        'vscode.openWith', currentPdfUri, 'vook.pdfViewer'
+      );
+    })
+  );
+
+  // ── Open panel command ───────────────────
+  context.subscriptions.push(
+    vscode.commands.registerCommand('vook.openPdfPanel', async () => {
+      const result = await vscode.window.showOpenDialog({
+        canSelectMany: false,
+        filters: { 'PDF Files': ['pdf'] },
+        title: 'Open PDF in Vook Panel'
+      });
+      if (!result || !result[0]) { return; }
+
+      currentPdfUri = result[0];
+      currentPdfName = path.basename(result[0].fsPath);
+
+      // Show the explorer sidebar if not visible, then focus the panel
+      await vscode.commands.executeCommand('workbench.view.explorer');
+      await panelProvider.loadPdf(currentPdfUri);
     })
   );
 }

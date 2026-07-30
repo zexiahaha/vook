@@ -45,6 +45,9 @@
   const marginLeftValue = document.getElementById('margin-left-value');
   const confirmBtn = document.getElementById('confirm-btn');
   const resetBtn = document.getElementById('reset-btn');
+  const magnifierToggleBtn = document.getElementById('magnifier-toggle');
+  const magnifier = document.getElementById('magnifier');
+  const magnifierCanvas = document.getElementById('magnifier-canvas');
 
   // ── State ───────────────────────────────
   let pdfDoc = null;
@@ -65,9 +68,11 @@
     brightness: 85,
     contrast: 90,
     fontOpacity: 1.0,
+    magnifierZoomLevel: 2.5,
   };
 
   let currentParams = Object.assign({}, defaultParams);
+  let savedParams = Object.assign({}, defaultParams);
 
   // ── Initialization ──────────────────────
   pdfContainer.style.marginLeft = 'auto';
@@ -305,6 +310,7 @@
   // ── Sync config to VS Code ──────────────
 
   function saveConfigToVSCode() {
+    savedParams = Object.assign({}, currentParams);
     vscode.postMessage({
       type: 'saveConfig',
       config: {
@@ -373,6 +379,9 @@
       currentParams.fontOpacity = config.fontOpacity;
       opacitySlider.value = config.fontOpacity;
       opacityValue.textContent = config.fontOpacity.toFixed(2);
+    }
+    if (config.magnifierZoomLevel !== undefined) {
+      currentParams.magnifierZoomLevel = config.magnifierZoomLevel;
     }
     if (config.darkModeEnabled !== undefined) {
       currentParams.darkModeEnabled = config.darkModeEnabled;
@@ -454,11 +463,11 @@
   });
 
   resetBtn.addEventListener('click', function () {
-    applyConfig(defaultParams);
+    applyConfig(savedParams);
+    updateDynamicStyles();
     if (pdfDoc) {
       renderPage(currentPage);
     }
-    saveConfigToVSCode();
   });
 
   toggleBtn.addEventListener('click', function () {
@@ -599,6 +608,7 @@
 
       case 'initConfig':
         applyConfig(msg.config);
+        savedParams = Object.assign({}, currentParams);
         // Enable dark mode by default
         if (currentParams.darkModeEnabled) {
           document.body.classList.add('dark-mode');
@@ -611,6 +621,153 @@
         break;
     }
   });
+
+  // ── Magnifier + Zoom + Pan (Panel Mode) ──
+  let magnifierEnabled = false;
+  let magHeight = 100;  // fixed height of the bottom strip
+  const magnifierCtx = magnifierCanvas ? magnifierCanvas.getContext('2d') : null;
+  let panelZoom = 1.0;
+  let isDragging = false;
+  let dragStartX = 0, dragStartY = 0, scrollStartX = 0, scrollStartY = 0;
+
+  // Helper: get the currently visible canvas element
+  function getCurrentCanvas() {
+    var pc = document.querySelector('.pdf-page');
+    return pc ? pc.querySelector('canvas') : null;
+  }
+
+  // Magnifier toggle button
+  if (magnifierToggleBtn) {
+    magnifierToggleBtn.addEventListener('click', function () {
+      magnifierEnabled = !magnifierEnabled;
+      if (magnifierEnabled) {
+        magnifierToggleBtn.classList.add('active');
+        pdfContainer.style.cursor = 'crosshair';
+        magnifier.style.display = 'block';
+      } else {
+        magnifierToggleBtn.classList.remove('active');
+        pdfContainer.style.cursor = panelZoom > 1 ? 'grab' : '';
+        magnifier.style.display = 'none';
+      }
+    });
+  }
+
+  // Magnifier: mousemove on PDF container → show strip at bottom
+  pdfContainer.addEventListener('mousemove', function (e) {
+    if (!magnifierEnabled || magnifierCtx === null) return;
+
+    var canvas = getCurrentCanvas();
+    if (!canvas) return;
+
+    var rect = canvas.getBoundingClientRect();
+    // Map visual (CSS) coordinates → canvas pixel coordinates
+    var scaleX = canvas.width / (rect.width || canvas.width);
+    var scaleY = canvas.height / (rect.height || canvas.height);
+    var cx = (e.clientX - rect.left) * scaleX;
+    var cy = (e.clientY - rect.top) * scaleY;
+
+    // Size the magnifier canvas to fill the strip
+    var magWidth = magnifier.offsetWidth || 300;
+    magnifierCanvas.width = magWidth;
+    magnifierCanvas.height = magHeight;
+    magnifierCtx.clearRect(0, 0, magWidth, magHeight);
+
+    // Source region: horizontal strip on original canvas, centered at cursor Y
+    var srcW = magWidth / currentParams.magnifierZoomLevel;
+    var srcH = magHeight / currentParams.magnifierZoomLevel;
+    var sx = Math.max(0, cx - srcW / 2);
+    var sy = Math.max(0, cy - srcH / 2);
+    // Clamp source to canvas bounds
+    var sw = Math.min(srcW, canvas.width - sx);
+    var sh = Math.min(srcH, canvas.height - sy);
+
+    // Draw the strip magnified to fill the bottom rectangle
+    magnifierCtx.drawImage(canvas, sx, sy, sw, sh, 0, 0, magWidth, magHeight);
+
+    // Apply same dark-mode filter + opacity
+    if (document.body.classList.contains('dark-mode')) {
+      magnifierCanvas.style.filter = [
+        'invert(' + currentParams.invert + '%)',
+        'hue-rotate(' + currentParams.hue + 'deg)',
+        'grayscale(' + currentParams.grayscale + '%)',
+        'brightness(' + currentParams.brightness + '%)',
+        'contrast(' + currentParams.contrast + '%)',
+      ].join(' ');
+      magnifierCanvas.style.opacity = currentParams.fontOpacity;
+      magnifier.style.backgroundColor = currentParams.canvasBackground;
+    } else {
+      magnifierCanvas.style.filter = '';
+      magnifierCanvas.style.opacity = '';
+      magnifier.style.backgroundColor = '';
+    }
+  });
+
+  pdfContainer.addEventListener('mouseleave', function () {
+    // Keep the magnifier visible even when mouse leaves — show last frame
+    // (more natural for fixed bottom strip)
+  });
+
+  // Ctrl+Wheel zoom (panel mode only)
+  if (window.__vookMode === 'panel') {
+    pdfContainer.addEventListener('wheel', function (e) {
+      if (e.ctrlKey) {
+        e.preventDefault();
+        var delta = e.deltaY > 0 ? -0.15 : 0.15;
+        panelZoom = Math.max(0.5, Math.min(4.0, panelZoom + delta));
+        var canvas = getCurrentCanvas();
+        if (canvas) {
+          canvas.style.transform = 'scale(' + panelZoom + ')';
+          canvas.style.transformOrigin = 'top left';
+        }
+        pdfContainer.style.overflow = panelZoom > 1.05 ? 'auto' : 'hidden';
+        if (panelZoom <= 1.05 && !magnifierEnabled) {
+          pdfContainer.style.cursor = '';
+        } else if (panelZoom > 1.05 && !magnifierEnabled) {
+          pdfContainer.style.cursor = 'grab';
+        }
+      }
+    }, { passive: false });
+
+    // Drag to pan (when zoomed in)
+    pdfContainer.addEventListener('mousedown', function (e) {
+      if (magnifierEnabled) return;
+      if (panelZoom > 1.05) {
+        isDragging = true;
+        dragStartX = e.clientX;
+        dragStartY = e.clientY;
+        scrollStartX = pdfContainer.scrollLeft;
+        scrollStartY = pdfContainer.scrollTop;
+        pdfContainer.style.cursor = 'grabbing';
+        e.preventDefault();
+      }
+    });
+
+    document.addEventListener('mousemove', function (e) {
+      if (!isDragging) return;
+      var dx = e.clientX - dragStartX;
+      var dy = e.clientY - dragStartY;
+      pdfContainer.scrollLeft = scrollStartX - dx;
+      pdfContainer.scrollTop = scrollStartY - dy;
+    });
+
+    document.addEventListener('mouseup', function () {
+      if (isDragging) {
+        isDragging = false;
+        pdfContainer.style.cursor = panelZoom > 1.05 ? 'grab' : '';
+      }
+    });
+  }
+
+  // ── Panel mode setup ────────────────────
+  if (window.__vookMode === 'panel') {
+    document.body.classList.add('panel-mode');
+    // Reduce default scale for narrow sidebar
+    if (currentParams.scale > 1.5) {
+      currentParams.scale = 1.2;
+      scaleSlider.value = '1.2';
+      scaleValue.textContent = '1.2';
+    }
+  }
 
   // ── Notify extension: webview is ready ──
   vscode.postMessage({ type: 'ready' });

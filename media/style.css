@@ -414,3 +414,196 @@ body.dark-mode #outline-panel::-webkit-scrollbar-thumb,
 body.dark-mode #param-panel::-webkit-scrollbar-thumb {
   background: #555;
 }
+
+/* ═══════════════════════════════════════════
+   Panel Mode (sidebar compact layout)
+   ═══════════════════════════════════════════ */
+
+body.panel-mode {
+  padding-bottom: 50px;
+  background-color: var(--vscode-sideBar-background, #252526);
+  color: var(--vscode-sideBar-foreground, #cccccc);
+}
+
+body.panel-mode #pdf-container {
+  width: auto !important;
+  margin: 5px 8px;
+  padding-top: 0;
+}
+
+body.panel-mode .pdf-page {
+  margin: 4px 0;
+}
+
+body.panel-mode .pdf-page canvas {
+  max-width: 100% !important;
+  height: auto !important;
+}
+
+body.panel-mode #outline-toggle-btn,
+body.panel-mode #file-select-btn,
+body.panel-mode #panel-toggle-btn {
+  display: none;
+}
+
+body.panel-mode .bottom-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 3px 6px;
+  gap: 3px;
+  background: var(--vscode-sideBar-background, #252526);
+  border-top: 1px solid var(--vscode-sideBar-border, #3e3e3e);
+}
+
+body.panel-mode .bottom-bar button {
+  padding: 2px 7px;
+  font-size: 11px;
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #cccccc);
+  border: 1px solid var(--vscode-button-border, #555);
+  border-radius: 3px;
+}
+
+body.panel-mode .bottom-bar button:hover {
+  background: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+body.panel-mode #page-input {
+  width: 44px;
+  height: 24px;
+  font-size: 11px;
+  text-align: center;
+  background: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-input-foreground, #cccccc);
+  border: 1px solid var(--vscode-input-border, #555);
+  border-radius: 3px;
+}
+
+body.panel-mode #total {
+  font-size: 11px;
+}
+
+body.panel-mode #param-panel {
+  top: 12px;
+  left: 6px;
+  right: 6px;
+  width: auto;
+  max-height: 50vh;
+  padding: 10px;
+  font-size: 11px;
+  background: var(--vscode-sideBar-background, #252526);
+  color: var(--vscode-sideBar-foreground, #cccccc);
+  border-color: var(--vscode-sideBar-border, #3e3e3e);
+}
+
+body.panel-mode #param-panel h4 {
+  font-size: 12px;
+}
+
+body.panel-mode #param-panel label {
+  font-size: 10px;
+}
+
+body.panel-mode #param-panel input[type='range'] {
+  height: 4px;
+}
+
+body.panel-mode #param-panel input[type='color'] {
+  height: 22px;
+}
+
+body.panel-mode #param-panel .param-item {
+  margin: 6px 0;
+}
+
+body.panel-mode #param-panel #confirm-btn,
+body.panel-mode #param-panel #reset-btn {
+  padding: 4px 0;
+  font-size: 11px;
+}
+
+body.panel-mode #outline-panel {
+  top: 12px;
+  left: 6px;
+  right: 6px;
+  width: auto;
+  max-height: 40vh;
+  padding: 10px;
+  font-size: 11px;
+  background: var(--vscode-sideBar-background, #252526);
+  color: var(--vscode-sideBar-foreground, #cccccc);
+  border-color: var(--vscode-sideBar-border, #3e3e3e);
+}
+
+body.panel-mode #outline-panel .outline-item {
+  font-size: 11px;
+}
+
+/* Dark mode overrides for panel (blend with VS Code sidebar) */
+body.panel-mode.dark-mode {
+  background-color: var(--vscode-sideBar-background, #252526);
+}
+
+body.panel-mode.dark-mode .bottom-bar {
+  background: var(--vscode-sideBar-background, #252526);
+  border-top-color: var(--vscode-sideBar-border, #3e3e3e);
+}
+
+/* ═══════════════════════════════════════════
+   Magnifier — bottom strip (panel mode)
+   ═══════════════════════════════════════════ */
+
+#magnifier {
+  display: none;
+  position: fixed;
+  bottom: 32px;
+  left: 0;
+  right: 0;
+  height: 100px;
+  pointer-events: none;
+  z-index: 15;
+  background: var(--vscode-sideBar-background, #1e1e1e);
+  border-top: 1px solid var(--vscode-sideBar-border, #333);
+  overflow: hidden;
+}
+
+#magnifier canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+/* Magnifier toggle button */
+#magnifier-toggle {
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+#magnifier-toggle:hover {
+  opacity: 0.85;
+}
+
+#magnifier-toggle.active {
+  opacity: 1;
+  background: #007acc !important;
+  color: #fff !important;
+  border-color: #007acc !important;
+}
+
+/* Panel mode canvas zoom support */
+body.panel-mode .pdf-page canvas {
+  transition: transform 0.05s ease-out;
+}
+
+body.panel-mode .pdf-page {
+  overflow: visible;
+}
+
+/* Dark mode magnifier toggle active */
+body.dark-mode #magnifier-toggle.active {
+  background: #0e639c !important;
+  color: #fff !important;
+}
