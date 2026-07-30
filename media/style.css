@@ -420,15 +420,23 @@ body.dark-mode #param-panel::-webkit-scrollbar-thumb {
    ═══════════════════════════════════════════ */
 
 body.panel-mode {
-  padding-bottom: 50px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
+  padding-bottom: 0;
   background-color: var(--vscode-sideBar-background, #252526);
   color: var(--vscode-sideBar-foreground, #cccccc);
 }
 
 body.panel-mode #pdf-container {
+  flex: 1;
   width: auto !important;
-  margin: 5px 8px;
+  margin: 5px 8px 35px 8px;
   padding-top: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(121, 121, 121, 0.4) transparent;
 }
 
 body.panel-mode .pdf-page {
@@ -591,6 +599,29 @@ body.panel-mode.dark-mode .bottom-bar {
   background: #007acc !important;
   color: #fff !important;
   border-color: #007acc !important;
+}
+
+/* Panel mode scrollbar — slim VS Code style */
+body.panel-mode ::-webkit-scrollbar {
+  width: 5px !important;
+  height: 5px !important;
+}
+
+body.panel-mode ::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+body.panel-mode ::-webkit-scrollbar-thumb {
+  background: rgba(121, 121, 121, 0.4) !important;
+  border-radius: 3px !important;
+}
+
+body.panel-mode ::-webkit-scrollbar-thumb:hover {
+  background: rgba(100, 100, 100, 0.6) !important;
+}
+
+body.panel-mode ::-webkit-scrollbar-corner {
+  background: transparent !important;
 }
 
 /* Panel mode canvas zoom support */

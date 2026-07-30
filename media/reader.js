@@ -745,7 +745,12 @@
           canvas.style.transform = 'scale(' + panelZoom + ')';
           canvas.style.transformOrigin = 'top left';
         }
-        pdfContainer.style.overflow = panelZoom > 1.05 ? 'auto' : 'hidden';
+        if (panelZoom > 1.05) {
+          pdfContainer.style.overflow = 'auto';
+        } else {
+          pdfContainer.style.overflowX = 'hidden';
+          pdfContainer.style.overflowY = 'auto';
+        }
         if (panelZoom <= 1.05 && !magnifierEnabled) {
           pdfContainer.style.cursor = '';
         } else if (panelZoom > 1.05 && !magnifierEnabled) {

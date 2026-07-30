@@ -2,7 +2,7 @@
   "name": "vook",
   "displayName": "Vook",
   "description": "Read PDF & EPUB ebooks in VS Code with dark mode, customizable colors and opacity",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "hahazexia",
   "license": "MIT",
   "icon": "images/icon.png",

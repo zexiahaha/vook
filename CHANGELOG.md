@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.3] - 2026-07-30
+
+### Fixed
+- Double scrollbar in panel mode when zoomed — body no longer scrolls, only pdfContainer
+- Panel pdfContainer now fills full available height with flex layout
+- Slim scrollbar styling (5px) in panel mode, matching VS Code native look
+
 ## [0.1.2] - 2026-07-30
 
 ### Added
