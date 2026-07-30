@@ -1,0 +1,166 @@
+{
+  "name": "vook",
+  "displayName": "Vook",
+  "description": "Read PDF & EPUB ebooks in VS Code with dark mode, customizable colors and opacity",
+  "version": "0.1.0",
+  "publisher": "hahazexia",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zexiahaha/vook"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "pdf",
+    "ebook",
+    "reader",
+    "dark mode",
+    "epub"
+  ],
+  "activationEvents": [
+    "onCustomEditor:vook.pdfViewer"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "vook.pdfViewer",
+        "displayName": "Vook PDF Viewer",
+        "selector": [
+          {
+            "filenamePattern": "*.pdf"
+          }
+        ]
+      }
+    ],
+    "commands": [
+      {
+        "command": "vook.openPdf",
+        "title": "Open PDF with Vook",
+        "icon": "$(book)"
+      }
+    ],
+    "menus": {
+      "explorer/context": [
+        {
+          "command": "vook.openPdf",
+          "when": "resourceExtname == .pdf",
+          "group": "navigation"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "vook.openPdf",
+          "when": "resourceExtname != .pdf"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "vook.openPdf",
+          "title": "Vook: Open PDF File"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "vook.openPdf",
+        "key": "ctrl+shift+p",
+        "mac": "cmd+shift+p",
+        "when": "editorLangId == pdf"
+      }
+    ],
+    "configuration": {
+      "title": "Vook",
+      "properties": {
+        "vook.scale": {
+          "type": "number",
+          "default": 2,
+          "minimum": 0.5,
+          "maximum": 4,
+          "description": "PDF rendering scale factor"
+        },
+        "vook.marginLeft": {
+          "type": "integer",
+          "default": -1,
+          "description": "Left margin of PDF container in pixels. -1 means auto center."
+        },
+        "vook.darkMode.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable dark mode by default when opening a PDF"
+        },
+        "vook.darkMode.bodyBackground": {
+          "type": "string",
+          "default": "#0c0c0c",
+          "format": "color",
+          "description": "Page background color in dark mode"
+        },
+        "vook.darkMode.canvasBackground": {
+          "type": "string",
+          "default": "#1a1a1a",
+          "format": "color",
+          "description": "Canvas background color in dark mode"
+        },
+        "vook.darkMode.invert": {
+          "type": "integer",
+          "default": 80,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Invert level (0-100). Higher = stronger inversion."
+        },
+        "vook.darkMode.hue": {
+          "type": "integer",
+          "default": 180,
+          "minimum": 0,
+          "maximum": 360,
+          "description": "Hue rotation in degrees"
+        },
+        "vook.darkMode.grayscale": {
+          "type": "integer",
+          "default": 10,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Grayscale level (0-100)"
+        },
+        "vook.darkMode.brightness": {
+          "type": "integer",
+          "default": 85,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Brightness level (0-100)"
+        },
+        "vook.darkMode.contrast": {
+          "type": "integer",
+          "default": 90,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Contrast level (0-100)"
+        },
+        "vook.darkMode.fontOpacity": {
+          "type": "number",
+          "default": 1,
+          "minimum": 0.1,
+          "maximum": 1,
+          "description": "Font/text opacity (0.1-1.0). Lower = more transparent text."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.2",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.9.2",
+    "typescript": "^5.3.0"
+  }
+}

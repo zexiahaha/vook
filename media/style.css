@@ -1,0 +1,416 @@
+/* ═══════════════════════════════════════════
+   Vook — VS Code PDF Reader Styles
+   ═══════════════════════════════════════════ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #ffffff;
+  color: #333333;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  position: relative;
+  min-height: 100vh;
+  padding-bottom: 60px;
+}
+
+/* ── PDF Container ────────────────────── */
+
+#pdf-container {
+  width: 800px;
+  margin: 10px auto;
+  padding-top: 50px;
+}
+
+.pdf-page {
+  margin: 10px 0;
+  transition: all 0.3s ease;
+}
+
+.pdf-page canvas {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+/* ── Bottom Navigation Bar ────────────── */
+
+.bottom-bar {
+  z-index: 10;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: #f3f3f3;
+  border-top: 1px solid #ddd;
+}
+
+.bottom-bar button {
+  padding: 6px 14px;
+  cursor: pointer;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.bottom-bar button:hover {
+  background: #e8e8e8;
+}
+
+#page-input {
+  text-align: center;
+  width: 60px;
+  height: 32px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+#total {
+  font-size: 13px;
+  color: #666;
+  min-width: 40px;
+}
+
+/* ── Icon Buttons (Top-Left) ──────────── */
+
+#outline-toggle-btn,
+#file-select-btn,
+#panel-toggle-btn,
+#toggle-mode-top {
+  z-index: 25;
+  position: fixed;
+  width: 36px;
+  height: 36px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  text-align: center;
+  line-height: 36px;
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+  transition: background 0.2s;
+}
+
+#outline-toggle-btn:hover,
+#file-select-btn:hover,
+#panel-toggle-btn:hover,
+#toggle-mode-top:hover {
+  background: #e8e8e8;
+}
+
+#outline-toggle-btn { top: 12px; left: 12px; }
+#file-select-btn   { top: 12px; left: 56px; }
+#panel-toggle-btn  { top: 12px; left: 100px; }
+
+#toggle-mode-top {
+  top: 12px;
+  right: 12px;
+  width: auto;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+/* ── Outline Panel ─────────────────────── */
+
+#outline-panel {
+  z-index: 20;
+  position: fixed;
+  top: 56px;
+  left: 12px;
+  width: 280px;
+  max-height: 70vh;
+  padding: 15px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  overflow-y: auto;
+  transition: all 0.25s ease;
+}
+
+#outline-panel.collapsed {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+}
+
+#outline-panel.expanded {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+#outline-panel .outline-empty {
+  color: #999;
+  font-size: 13px;
+  text-align: center;
+  padding: 20px 0;
+}
+
+#outline-panel .outline-item {
+  padding: 5px 8px;
+  cursor: pointer;
+  border-radius: 4px;
+  margin: 2px 0;
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#outline-panel .outline-item:hover {
+  background-color: #f0f0f0;
+}
+
+#outline-panel .outline-level-0 { padding-left: 4px;  font-weight: 700; }
+#outline-panel .outline-level-1 { padding-left: 20px; font-size: 12px; }
+#outline-panel .outline-level-2 { padding-left: 34px; font-size: 12px; }
+#outline-panel .outline-level-3 { padding-left: 48px; font-size: 11px; }
+#outline-panel .outline-level-4 { padding-left: 62px; font-size: 11px; }
+
+#outline-panel .outline-item-active {
+  background-color: #007bff;
+  color: #fff;
+}
+
+/* ── Settings Panel ────────────────────── */
+
+#param-panel {
+  z-index: 20;
+  position: fixed;
+  top: 56px;
+  left: 100px;
+  width: 320px;
+  max-height: 70vh;
+  padding: 16px;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  overflow-y: auto;
+  transition: all 0.25s ease;
+}
+
+#param-panel.collapsed {
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(-10px);
+}
+
+#param-panel.expanded {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+#param-panel h4 {
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: #333;
+}
+
+#param-panel .param-item {
+  margin: 10px 0;
+}
+
+#param-panel label {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: #555;
+}
+
+#param-panel input[type='range'] {
+  width: 100%;
+}
+
+#param-panel input[type='color'] {
+  width: 100%;
+  height: 28px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  padding: 2px;
+}
+
+#param-panel .param-value {
+  display: inline-block;
+  min-width: 40px;
+  text-align: right;
+  font-size: 12px;
+  color: #888;
+}
+
+#param-panel #confirm-btn,
+#param-panel #reset-btn {
+  width: 48%;
+  padding: 7px 0;
+  margin-top: 14px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 13px;
+}
+
+#param-panel #confirm-btn {
+  background: #007bff;
+  color: #fff;
+  margin-right: 4%;
+}
+
+#param-panel #confirm-btn:hover { background: #0069d9; }
+
+#param-panel #reset-btn {
+  background: #6c757d;
+  color: #fff;
+}
+
+#param-panel #reset-btn:hover { background: #5a6268; }
+
+/* ═══════════════════════════════════════════
+   Dark Mode
+   ═══════════════════════════════════════════ */
+
+body.dark-mode {
+  background-color: #0c0c0c;
+  color: #ddd;
+}
+
+/* Core: CSS filter inversion — the key to dark mode for scanned PDFs */
+body.dark-mode .pdf-page canvas {
+  filter: invert(80%) hue-rotate(180deg) grayscale(10%) brightness(85%) contrast(90%);
+  background-color: #1a1a1a;
+}
+
+/* Bottom navigation bar */
+body.dark-mode .bottom-bar {
+  background: #1e1e1e;
+  border-top-color: #444;
+}
+
+body.dark-mode .bottom-bar button {
+  background: #333;
+  color: #ddd;
+  border-color: #555;
+}
+
+body.dark-mode .bottom-bar button:hover {
+  background: #444;
+}
+
+body.dark-mode #page-input {
+  background: #333;
+  color: #ddd;
+  border-color: #555;
+}
+
+body.dark-mode #total {
+  color: #ccc;
+}
+
+/* Icon buttons */
+body.dark-mode #outline-toggle-btn,
+body.dark-mode #file-select-btn,
+body.dark-mode #panel-toggle-btn,
+body.dark-mode #toggle-mode-top {
+  background: #333;
+  color: #ddd;
+  border-color: #555;
+}
+
+body.dark-mode #outline-toggle-btn:hover,
+body.dark-mode #file-select-btn:hover,
+body.dark-mode #panel-toggle-btn:hover,
+body.dark-mode #toggle-mode-top:hover {
+  background: #444;
+}
+
+/* Outline panel */
+body.dark-mode #outline-panel {
+  background: #222;
+  color: #ddd;
+  border-color: #444;
+}
+
+body.dark-mode #outline-panel .outline-empty {
+  color: #ccc;
+}
+
+body.dark-mode #outline-panel .outline-item:hover {
+  background-color: #333;
+}
+
+body.dark-mode #outline-panel .outline-item-active {
+  background-color: #0056b3;
+  color: #fff;
+}
+
+/* Settings panel */
+body.dark-mode #param-panel {
+  background: #222;
+  color: #ddd;
+  border-color: #444;
+}
+
+body.dark-mode #param-panel h4 {
+  color: #eee;
+}
+
+body.dark-mode #param-panel label {
+  color: #bbb;
+}
+
+body.dark-mode #param-panel .param-value {
+  color: #ccc;
+}
+
+body.dark-mode #param-panel #confirm-btn {
+  background: #0056b3;
+}
+
+body.dark-mode #param-panel #confirm-btn:hover {
+  background: #004494;
+}
+
+body.dark-mode #param-panel #reset-btn {
+  background: #555;
+}
+
+body.dark-mode #param-panel #reset-btn:hover {
+  background: #666;
+}
+
+/* ═══════════════════════════════════════════
+   Scrollbar (for panels)
+   ═══════════════════════════════════════════ */
+
+#outline-panel::-webkit-scrollbar,
+#param-panel::-webkit-scrollbar {
+  width: 6px;
+}
+
+#outline-panel::-webkit-scrollbar-thumb,
+#param-panel::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+body.dark-mode #outline-panel::-webkit-scrollbar-thumb,
+body.dark-mode #param-panel::-webkit-scrollbar-thumb {
+  background: #555;
+}
