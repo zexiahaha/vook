@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.2] - 2026-07-30
+
+### Added
+- WASD keyboard panning in panel mode (W/A/S/D = up/left/down/right)
+- `vook.panel.wasdStep` setting to configure WASD pan speed (5–200px, default 30)
+
+### Changed
+- WASD pan only activates when zoomed in (panelZoom > 1.05)
+
 ## [0.1.1] - 2026-07-30
 
 ### Added

@@ -69,6 +69,7 @@
     contrast: 90,
     fontOpacity: 1.0,
     magnifierZoomLevel: 2.5,
+    wasdStep: 30,
   };
 
   let currentParams = Object.assign({}, defaultParams);
@@ -383,6 +384,9 @@
     if (config.magnifierZoomLevel !== undefined) {
       currentParams.magnifierZoomLevel = config.magnifierZoomLevel;
     }
+    if (config.wasdStep !== undefined) {
+      currentParams.wasdStep = config.wasdStep;
+    }
     if (config.darkModeEnabled !== undefined) {
       currentParams.darkModeEnabled = config.darkModeEnabled;
       if (config.darkModeEnabled) {
@@ -586,6 +590,28 @@
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault();
           toggleBtn.click();
+        } else if (window.__vookMode === 'panel' && panelZoom > 1.05) {
+          e.preventDefault();
+          pdfContainer.scrollLeft += currentParams.wasdStep;
+        }
+        break;
+      // ── WASD pan (panel mode, zoomed in) ──
+      case 'w':
+        if (window.__vookMode === 'panel' && panelZoom > 1.05) {
+          e.preventDefault();
+          pdfContainer.scrollTop -= currentParams.wasdStep;
+        }
+        break;
+      case 'a':
+        if (window.__vookMode === 'panel' && panelZoom > 1.05) {
+          e.preventDefault();
+          pdfContainer.scrollLeft -= currentParams.wasdStep;
+        }
+        break;
+      case 's':
+        if (window.__vookMode === 'panel' && panelZoom > 1.05) {
+          e.preventDefault();
+          pdfContainer.scrollTop += currentParams.wasdStep;
         }
         break;
     }

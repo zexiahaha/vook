@@ -242,6 +242,7 @@ function serializeConfig(config) {
         contrast: config.get('darkMode.contrast', 90),
         fontOpacity: config.get('darkMode.fontOpacity', 1.0),
         magnifierZoomLevel: config.get('magnifier.zoomLevel', 2.5),
+        wasdStep: config.get('panel.wasdStep', 30),
     };
 }
 // ────────────────────────────────────────
