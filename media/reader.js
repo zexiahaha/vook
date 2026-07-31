@@ -80,6 +80,15 @@
   pdfContainer.style.marginRight = 'auto';
 
   // ── Outline click handler ───────────────
+  // ── Page turn helper (reports progress to extension) ──
+  function setCurrentPage(pageNum, report) {
+    currentPage = pageNum;
+    pageInput.value = pageNum;
+    if (report !== false) {
+      vscode.postMessage({ type: 'reportProgress', page: pageNum });
+    }
+  }
+
   function handleOutlineItemClick(e) {
     e.stopPropagation();
     const targetItem = e.target.closest('.outline-item');
@@ -87,8 +96,7 @@
     if (targetItem.dataset.clickable !== 'true') return;
     const targetPage = parseInt(targetItem.dataset.page);
     if (targetPage && !isNaN(targetPage) && targetPage >= 1 && targetPage <= totalPages) {
-      currentPage = targetPage;
-      pageInput.value = currentPage;
+      setCurrentPage(targetPage);
       renderPage(currentPage).catch(err => console.error('Failed to render page:', err));
     }
   }
@@ -200,7 +208,7 @@
 
   // ── PDF Loading & Rendering ─────────────
 
-  async function initPDF(url, data) {
+  async function initPDF(url, data, initialPage) {
     pdfContainer.innerHTML = '<div style="text-align:center;padding:60px 0;color:#999;">Loading PDF...</div>';
     try {
       const params = {
@@ -217,8 +225,8 @@
       pdfDoc = await loadingTask.promise;
       totalPages = pdfDoc.numPages;
       totalEl.textContent = '/' + totalPages;
-      currentPage = 1;
-      pageInput.value = 1;
+      currentPage = Math.min(initialPage || 1, totalPages);
+      pageInput.value = currentPage;
       await renderPage(currentPage);
       await getPDFOutline();
     } catch (error) {
@@ -262,11 +270,14 @@
       if (window.__vookMode === 'panel' && panelZoom !== 1.0) {
         var c = getCurrentCanvas();
         if (c) {
-          c.style.transform = 'scale(' + panelZoom + ')';
-          c.style.transformOrigin = 'top left';
+          c.style.setProperty('max-width', 'none', 'important');
+          var refW = pdfContainer.clientWidth || 300;
+          c.style.width = (refW * panelZoom) + 'px';
+          c.style.height = 'auto';
         }
-        if (panelZoom > 1.05) {
+        if (panelZoom > 1.0) {
           pdfContainer.style.overflow = 'auto';
+          if (!magnifierEnabled) pdfContainer.style.cursor = 'grab';
         }
       }
     } catch (error) {
@@ -277,18 +288,22 @@
   // ── Dynamic Style Updates ───────────────
 
   function updateDynamicStyles() {
-    // Margin
-    if (currentParams.marginLeft === -1) {
-      pdfContainer.style.marginLeft = 'auto';
-      pdfContainer.style.marginRight = 'auto';
+    // Editor mode: inline layout styles. Panel mode: CSS flex handles layout.
+    if (window.__vookMode !== 'panel') {
+      if (currentParams.marginLeft === -1) {
+        pdfContainer.style.marginLeft = 'auto';
+        pdfContainer.style.marginRight = 'auto';
+      } else {
+        pdfContainer.style.marginLeft = currentParams.marginLeft + 'px';
+        pdfContainer.style.marginRight = '0';
+      }
+      const baseWidth = 800;
+      pdfContainer.style.width = (baseWidth * currentParams.scale * 0.5) + 'px';
     } else {
-      pdfContainer.style.marginLeft = currentParams.marginLeft + 'px';
-      pdfContainer.style.marginRight = '0';
+      pdfContainer.style.marginLeft = '';
+      pdfContainer.style.marginRight = '';
+      pdfContainer.style.width = '';
     }
-
-    // Container width scales with zoom
-    const baseWidth = 800;
-    pdfContainer.style.width = (baseWidth * currentParams.scale * 0.5) + 'px';
 
     // Dark mode: CSS filters + colors + opacity
     if (document.body.classList.contains('dark-mode')) {
@@ -496,16 +511,14 @@
 
   prevBtn.addEventListener('click', function () {
     if (pdfDoc && currentPage > 1) {
-      currentPage--;
-      pageInput.value = currentPage;
+      setCurrentPage(currentPage - 1);
       renderPage(currentPage);
     }
   });
 
   nextBtn.addEventListener('click', function () {
     if (pdfDoc && currentPage < totalPages) {
-      currentPage++;
-      pageInput.value = currentPage;
+      setCurrentPage(currentPage + 1);
       renderPage(currentPage);
     }
   });
@@ -513,7 +526,7 @@
   pageInput.addEventListener('change', function () {
     const targetPage = parseInt(this.value);
     if (pdfDoc && !isNaN(targetPage) && targetPage >= 1 && targetPage <= totalPages) {
-      currentPage = targetPage;
+      setCurrentPage(targetPage);
       renderPage(currentPage);
     } else {
       pageInput.value = currentPage;
@@ -602,26 +615,26 @@
         if (e.ctrlKey || e.metaKey) {
           e.preventDefault();
           toggleBtn.click();
-        } else if (window.__vookMode === 'panel' && panelZoom > 1.05) {
+        } else if (window.__vookMode === 'panel') {
           e.preventDefault();
           pdfContainer.scrollLeft += currentParams.wasdStep;
         }
         break;
       // ── WASD pan (panel mode, zoomed in) ──
       case 'w':
-        if (window.__vookMode === 'panel' && panelZoom > 1.05) {
+        if (window.__vookMode === 'panel') {
           e.preventDefault();
           pdfContainer.scrollTop -= currentParams.wasdStep;
         }
         break;
       case 'a':
-        if (window.__vookMode === 'panel' && panelZoom > 1.05) {
+        if (window.__vookMode === 'panel') {
           e.preventDefault();
           pdfContainer.scrollLeft -= currentParams.wasdStep;
         }
         break;
       case 's':
-        if (window.__vookMode === 'panel' && panelZoom > 1.05) {
+        if (window.__vookMode === 'panel') {
           e.preventDefault();
           pdfContainer.scrollTop += currentParams.wasdStep;
         }
@@ -659,12 +672,12 @@
             pdfContainer.style.display = 'none';
             var bb = document.querySelector('.bottom-bar');
             if (bb) bb.style.display = 'none';
-            if (magnifierPanel) magnifierPanel.style.display = 'none';
+            if (magnifier) magnifier.style.display = 'none';
           } else {
             pdfContainer.style.display = '';
             var bb2 = document.querySelector('.bottom-bar');
             if (bb2) bb2.style.display = '';
-            if (magnifierPanel) magnifierPanel.style.display = '';
+            if (magnifier) magnifier.style.display = '';
           }
         }
         break;
@@ -673,7 +686,7 @@
 
   // ── VS Code Message Handler ─────────────
 
-  window.addEventListener('message', function (event) {
+  window.addEventListener('message', async function (event) {
     const msg = event.data;
 
     switch (msg.type) {
@@ -683,7 +696,11 @@
         pdfjsLib.GlobalWorkerOptions.workerSrc = window.__pdfWorkerSrc;
         // Decode base64 → Uint8Array, pass to pdf.js
         const pdfBytes = base64ToUint8(msg.data);
-        initPDF(null, pdfBytes);
+        // Pre-set zoom so renderPage applies overflow on first render
+        if (msg.lastZoom && msg.lastZoom !== 1.0) {
+          panelZoom = msg.lastZoom;
+        }
+        await initPDF(null, pdfBytes, msg.lastPage || 1);
         break;
 
       case 'initConfig':
@@ -708,6 +725,7 @@
   const magnifierCtx = magnifierCanvas ? magnifierCanvas.getContext('2d') : null;
   let panelZoom = 1.0;
   let panelCollapsed = false;
+  let _sendZoomTimer = null;
   let isDragging = false;
   let dragStartX = 0, dragStartY = 0, scrollStartX = 0, scrollStartY = 0;
 
@@ -793,20 +811,25 @@
     panelZoom = Math.max(0.5, Math.min(4.0, zoom));
     var canvas = getCurrentCanvas();
     if (canvas) {
-      canvas.style.transform = 'scale(' + panelZoom + ')';
-      canvas.style.transformOrigin = 'top left';
+      // Proportional width: canvas width = container width × zoom (smooth, no jump)
+      canvas.style.setProperty('max-width', 'none', 'important');
+      var refW = pdfContainer.clientWidth || 300;
+      canvas.style.width = (refW * panelZoom) + 'px';
+      canvas.style.height = 'auto';
     }
-    if (panelZoom > 1.05) {
+    if (panelZoom > 1.0) {
       pdfContainer.style.overflow = 'auto';
+      if (!magnifierEnabled) pdfContainer.style.cursor = 'grab';
     } else {
       pdfContainer.style.overflowX = 'hidden';
       pdfContainer.style.overflowY = 'auto';
+      if (!magnifierEnabled) pdfContainer.style.cursor = '';
     }
-    if (panelZoom <= 1.05 && !magnifierEnabled) {
-      pdfContainer.style.cursor = '';
-    } else if (panelZoom > 1.05 && !magnifierEnabled) {
-      pdfContainer.style.cursor = 'grab';
-    }
+    // Debounced: report zoom back to extension for persistence
+    if (_sendZoomTimer) clearTimeout(_sendZoomTimer);
+    _sendZoomTimer = setTimeout(function () {
+      vscode.postMessage({ type: 'reportZoom', zoom: panelZoom });
+    }, 500);
   }
 
   // Ctrl+Wheel zoom (panel mode only)
@@ -822,7 +845,7 @@
     // Drag to pan (when zoomed in)
     pdfContainer.addEventListener('mousedown', function (e) {
       if (magnifierEnabled) return;
-      if (panelZoom > 1.05) {
+      if (panelZoom > 1.5) {
         isDragging = true;
         dragStartX = e.clientX;
         dragStartY = e.clientY;
@@ -844,7 +867,7 @@
     document.addEventListener('mouseup', function () {
       if (isDragging) {
         isDragging = false;
-        pdfContainer.style.cursor = panelZoom > 1.05 ? 'grab' : '';
+        pdfContainer.style.cursor = panelZoom > 1.5 ? 'grab' : '';
       }
     });
   }

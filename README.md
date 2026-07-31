@@ -16,9 +16,10 @@ Read PDF ebooks directly in your VS Code editor with dark mode, customizable dis
 ### Panel Mode (Sidebar)
 - **🪟 Low-Profile Reading** — Read PDF in the Explorer sidebar, hidden in plain sight
 - **🔍 Magnifier** — Bottom strip shows 2.5× magnified view following your cursor
-- **🔎 Ctrl+Scroll Zoom** — 0.5×–4× with drag-to-pan when zoomed in
-- **🎮 WASD Pan** — Keyboard panning when zoomed: W/A/S/D = up/left/down/right
+- **🔎 Smooth Zoom** — 0.5×–4× proportional zoom with drag-to-pan and scrollbars
+- **🎮 WASD Pan** — Keyboard panning: W/A/S/D = up/left/down/right (always active in panel)
 - **🔄 Mode Switching** — One-click switch between editor (full-screen) and panel (sidebar)
+- **💾 Auto-Restore** — Reopen VS Code to your last book, last page, and last zoom level automatically
 
 ## 🚀 Quick Start
 

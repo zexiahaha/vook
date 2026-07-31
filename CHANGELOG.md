@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.7] - 2026-07-31
+
+### Added
+- Auto-restore reading progress: reopens last book at last page with last zoom level on VS Code launch
+
+### Fixed
+- F key panic button was broken due to undefined variable
+- Zoom now scales proportionally instead of jumping abruptly at threshold
+- Saved page number now clamped to document page count
+- Config values now validated before writing to settings.json
+- Progress data no longer wiped on unrelated startup errors
+
 ## [0.1.6] - 2026-07-31
 
 ### Added

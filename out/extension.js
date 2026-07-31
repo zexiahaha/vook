@@ -162,10 +162,24 @@ function buildHtml(webview, context, mode) {
 </body>
 </html>`;
 }
-// ────────────────────────────────────────
-// Shared: message handler
-// ────────────────────────────────────────
-async function handleMessage(msg, webview, documentUri, loadPdfCallback) {
+function getProgress(context, fsPath) {
+    const all = context.globalState.get('vook.bookProgress') || {};
+    return all[fsPath] || null;
+}
+async function saveProgress(context, fsPath, page, zoom) {
+    const all = context.globalState.get('vook.bookProgress') || {};
+    all[fsPath] = { page, panelZoom: zoom, updatedAt: Date.now() };
+    await context.globalState.update('vook.bookProgress', all);
+}
+async function removeProgress(context, fsPath) {
+    const all = context.globalState.get('vook.bookProgress') || {};
+    delete all[fsPath];
+    await context.globalState.update('vook.bookProgress', all);
+}
+// Debounce timers for progress saves
+let _progressTimer = null;
+let _zoomTimer = null;
+async function handleMessage(msg, webview, documentUri, context, loadPdfCallback) {
     switch (msg.type) {
         case 'openFile': {
             const result = await vscode.window.showOpenDialog({
@@ -183,7 +197,8 @@ async function handleMessage(msg, webview, documentUri, loadPdfCallback) {
         case 'saveConfig': {
             const config = vscode.workspace.getConfiguration('vook');
             for (const [key, value] of Object.entries(msg.config)) {
-                await config.update(key, value, vscode.ConfigurationTarget.Global);
+                const clamped = clampConfigValue(key, value);
+                await config.update(key, clamped, vscode.ConfigurationTarget.Global);
             }
             break;
         }
@@ -202,12 +217,18 @@ async function handleMessage(msg, webview, documentUri, loadPdfCallback) {
             const uriToLoad = documentUri || currentPdfUri;
             if (uriToLoad) {
                 try {
+                    // Save last book + mode
+                    await context.globalState.update('vook.lastBookUri', uriToLoad.fsPath);
+                    await context.globalState.update('vook.lastMode', 'editor');
                     const pdfData = await vscode.workspace.fs.readFile(uriToLoad);
                     const base64 = uint8ToBase64(pdfData);
+                    const progress = getProgress(context, uriToLoad.fsPath);
                     webview.postMessage({
                         type: 'openPdfData',
                         data: base64,
-                        name: path.basename(uriToLoad.fsPath)
+                        name: path.basename(uriToLoad.fsPath),
+                        lastPage: progress ? progress.page : undefined,
+                        lastZoom: progress ? progress.panelZoom : undefined
                     });
                 }
                 catch (err) {
@@ -223,11 +244,55 @@ async function handleMessage(msg, webview, documentUri, loadPdfCallback) {
             currentPdfUri = msg.uri ? vscode.Uri.parse(msg.uri) : currentPdfUri;
             break;
         }
+        case 'reportProgress': {
+            const uri = currentPdfUri;
+            if (!uri)
+                break;
+            // debounce 500ms
+            if (_progressTimer)
+                clearTimeout(_progressTimer);
+            _progressTimer = setTimeout(async () => {
+                const all = context.globalState.get('vook.bookProgress') || {};
+                const existing = all[uri.fsPath] || { panelZoom: 1.0, updatedAt: 0 };
+                await saveProgress(context, uri.fsPath, msg.page, existing.panelZoom);
+            }, 500);
+            break;
+        }
+        case 'reportZoom': {
+            const uri = currentPdfUri;
+            if (!uri)
+                break;
+            // debounce 500ms
+            if (_zoomTimer)
+                clearTimeout(_zoomTimer);
+            _zoomTimer = setTimeout(async () => {
+                const all = context.globalState.get('vook.bookProgress') || {};
+                const existing = all[uri.fsPath] || { page: 1, updatedAt: 0 };
+                await saveProgress(context, uri.fsPath, existing.page, msg.zoom);
+            }, 500);
+            break;
+        }
     }
 }
 // ────────────────────────────────────────
 // Shared: config serialization
 // ────────────────────────────────────────
+// Clamp config values to safe ranges
+function clampConfigValue(key, value) {
+    if (typeof value !== 'number')
+        return value;
+    switch (key) {
+        case 'scale': return Math.max(0.5, Math.min(4.0, value));
+        case 'marginLeft': return Math.max(-1, Math.min(500, value));
+        case 'darkMode.invert': return Math.max(0, Math.min(100, value));
+        case 'darkMode.hue': return Math.max(0, Math.min(360, value));
+        case 'darkMode.grayscale': return Math.max(0, Math.min(100, value));
+        case 'darkMode.brightness': return Math.max(0, Math.min(100, value));
+        case 'darkMode.contrast': return Math.max(0, Math.min(100, value));
+        case 'darkMode.fontOpacity': return Math.max(0.1, Math.min(1.0, value));
+        default: return value;
+    }
+}
 function serializeConfig(config) {
     return {
         scale: config.get('scale', 2.0),
@@ -285,7 +350,7 @@ class PdfViewerProvider {
         };
         webview.html = buildHtml(webview, this.context, 'editor');
         webview.onDidReceiveMessage(async (msg) => {
-            await handleMessage(msg, webview, document.uri);
+            await handleMessage(msg, webview, document.uri, this.context);
         });
         currentPdfUri = document.uri;
         currentPdfName = path.basename(document.uri.fsPath);
@@ -315,7 +380,7 @@ class PdfPanelProvider {
         webviewView.title = getPanelLabel();
         webviewView.description = '';
         webview.onDidReceiveMessage(async (msg) => {
-            await handleMessage(msg, webview, currentPdfUri || undefined);
+            await handleMessage(msg, webview, currentPdfUri || undefined, this.context);
         });
     }
     async loadPdf(uri) {
@@ -326,10 +391,14 @@ class PdfPanelProvider {
         currentPdfName = path.basename(uri.fsPath);
         this._view.title = getPanelLabel();
         this._view.description = '';
+        // Save last book + mode
+        await this.context.globalState.update('vook.lastBookUri', uri.fsPath);
+        await this.context.globalState.update('vook.lastMode', 'panel');
         try {
             const pdfData = await vscode.workspace.fs.readFile(uri);
             const base64 = uint8ToBase64(pdfData);
             const config = vscode.workspace.getConfiguration('vook');
+            const progress = getProgress(this.context, uri.fsPath);
             this._view.webview.postMessage({
                 type: 'initConfig',
                 config: serializeConfig(config)
@@ -337,7 +406,9 @@ class PdfPanelProvider {
             this._view.webview.postMessage({
                 type: 'openPdfData',
                 data: base64,
-                name: currentPdfName
+                name: currentPdfName,
+                lastPage: progress ? progress.page : undefined,
+                lastZoom: progress ? progress.panelZoom : undefined
             });
         }
         catch (err) {
@@ -356,7 +427,7 @@ class PdfPanelProvider {
 // Extension activation
 // ────────────────────────────────────────
 let panelProvider;
-function activate(context) {
+async function activate(context) {
     // ── Editor mode ──────────────────────────
     context.subscriptions.push(vscode.window.registerCustomEditorProvider('vook.pdfViewer', new PdfViewerProvider(context), {
         webviewOptions: { retainContextWhenHidden: true },
@@ -431,6 +502,36 @@ function activate(context) {
         await vscode.commands.executeCommand('workbench.view.explorer');
         await panelProvider.loadPdf(currentPdfUri);
     }));
+    // ── Auto-open last book in panel on startup ──
+    const lastUri = context.globalState.get('vook.lastBookUri');
+    if (lastUri) {
+        try {
+            await vscode.workspace.fs.stat(vscode.Uri.file(lastUri));
+        }
+        catch (e) {
+            if (e?.code === 'FileNotFound') {
+                // File deleted — clean up
+                await context.globalState.update('vook.lastBookUri', undefined);
+                await removeProgress(context, lastUri);
+            }
+            return; // skip auto-open on any stat error
+        }
+        // File exists — open in panel
+        try {
+            const tabs = vscode.window.tabGroups.all.flatMap(g => g.tabs);
+            for (const tab of tabs) {
+                const input = tab.input;
+                if (input?.uri?.fsPath === lastUri) {
+                    await vscode.window.tabGroups.close(tab);
+                }
+            }
+        }
+        catch { /* tab close failure is non-fatal */ }
+        currentPdfUri = vscode.Uri.file(lastUri);
+        currentPdfName = path.basename(lastUri);
+        await vscode.commands.executeCommand('workbench.view.explorer');
+        await panelProvider.loadPdf(currentPdfUri);
+    }
 }
 function deactivate() { }
 //# sourceMappingURL=extension.js.map
