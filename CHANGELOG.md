@@ -1,5 +1,10 @@
 # Changelog
 
+## [0.1.6] - 2026-07-31
+
+### Added
+- F key: toggle collapse/restore Vook panel content in sidebar for privacy (panic button)
+
 ## [0.1.5] - 2026-07-31
 
 ### Fixed

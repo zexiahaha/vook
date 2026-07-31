@@ -651,6 +651,23 @@
           applyPanelZoom(panelZoom + 0.15);
         }
         break;
+      case 'f':
+        if (window.__vookMode === 'panel' && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          e.preventDefault();
+          panelCollapsed = !panelCollapsed;
+          if (panelCollapsed) {
+            pdfContainer.style.display = 'none';
+            var bb = document.querySelector('.bottom-bar');
+            if (bb) bb.style.display = 'none';
+            if (magnifierPanel) magnifierPanel.style.display = 'none';
+          } else {
+            pdfContainer.style.display = '';
+            var bb2 = document.querySelector('.bottom-bar');
+            if (bb2) bb2.style.display = '';
+            if (magnifierPanel) magnifierPanel.style.display = '';
+          }
+        }
+        break;
     }
   });
 
@@ -690,6 +707,7 @@
   let magHeight = 100;  // fixed height of the bottom strip
   const magnifierCtx = magnifierCanvas ? magnifierCanvas.getContext('2d') : null;
   let panelZoom = 1.0;
+  let panelCollapsed = false;
   let isDragging = false;
   let dragStartX = 0, dragStartY = 0, scrollStartX = 0, scrollStartY = 0;
 
