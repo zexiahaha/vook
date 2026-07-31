@@ -257,6 +257,18 @@
       updateDynamicStyles();
 
       await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+      // Re-apply panel zoom after page turn (panel mode)
+      if (window.__vookMode === 'panel' && panelZoom !== 1.0) {
+        var c = getCurrentCanvas();
+        if (c) {
+          c.style.transform = 'scale(' + panelZoom + ')';
+          c.style.transformOrigin = 'top left';
+        }
+        if (panelZoom > 1.05) {
+          pdfContainer.style.overflow = 'auto';
+        }
+      }
     } catch (error) {
       console.error('Page rendering failed:', error);
     }
@@ -614,6 +626,31 @@
           pdfContainer.scrollTop += currentParams.wasdStep;
         }
         break;
+      // ── Panel mode: page nav + zoom (Z/X/Q/E) ──
+      case 'z':
+        if (window.__vookMode === 'panel') {
+          e.preventDefault();
+          prevBtn.click();
+        }
+        break;
+      case 'x':
+        if (window.__vookMode === 'panel') {
+          e.preventDefault();
+          nextBtn.click();
+        }
+        break;
+      case 'q':
+        if (window.__vookMode === 'panel') {
+          e.preventDefault();
+          applyPanelZoom(panelZoom - 0.15);
+        }
+        break;
+      case 'e':
+        if (window.__vookMode === 'panel') {
+          e.preventDefault();
+          applyPanelZoom(panelZoom + 0.15);
+        }
+        break;
     }
   });
 
@@ -733,29 +770,34 @@
     // (more natural for fixed bottom strip)
   });
 
+  // Apply zoom to current canvas (shared by wheel + keyboard shortcuts)
+  function applyPanelZoom(zoom) {
+    panelZoom = Math.max(0.5, Math.min(4.0, zoom));
+    var canvas = getCurrentCanvas();
+    if (canvas) {
+      canvas.style.transform = 'scale(' + panelZoom + ')';
+      canvas.style.transformOrigin = 'top left';
+    }
+    if (panelZoom > 1.05) {
+      pdfContainer.style.overflow = 'auto';
+    } else {
+      pdfContainer.style.overflowX = 'hidden';
+      pdfContainer.style.overflowY = 'auto';
+    }
+    if (panelZoom <= 1.05 && !magnifierEnabled) {
+      pdfContainer.style.cursor = '';
+    } else if (panelZoom > 1.05 && !magnifierEnabled) {
+      pdfContainer.style.cursor = 'grab';
+    }
+  }
+
   // Ctrl+Wheel zoom (panel mode only)
   if (window.__vookMode === 'panel') {
     pdfContainer.addEventListener('wheel', function (e) {
       if (e.ctrlKey) {
         e.preventDefault();
         var delta = e.deltaY > 0 ? -0.15 : 0.15;
-        panelZoom = Math.max(0.5, Math.min(4.0, panelZoom + delta));
-        var canvas = getCurrentCanvas();
-        if (canvas) {
-          canvas.style.transform = 'scale(' + panelZoom + ')';
-          canvas.style.transformOrigin = 'top left';
-        }
-        if (panelZoom > 1.05) {
-          pdfContainer.style.overflow = 'auto';
-        } else {
-          pdfContainer.style.overflowX = 'hidden';
-          pdfContainer.style.overflowY = 'auto';
-        }
-        if (panelZoom <= 1.05 && !magnifierEnabled) {
-          pdfContainer.style.cursor = '';
-        } else if (panelZoom > 1.05 && !magnifierEnabled) {
-          pdfContainer.style.cursor = 'grab';
-        }
+        applyPanelZoom(panelZoom + delta);
       }
     }, { passive: false });
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.1.5] - 2026-07-31
+
+### Fixed
+- Panel zoom now persists across page turns (was resetting to 1.0 after each page change)
+
+### Added
+- Keyboard shortcuts in panel mode: Z/X = previous/next page, Q/E = zoom out/in
+- Extracted `applyPanelZoom()` helper for consistent zoom behavior across wheel and keyboard
+
 ## [0.1.3] - 2026-07-30
 
 ### Fixed
