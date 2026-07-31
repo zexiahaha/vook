@@ -45,6 +45,7 @@ Read PDF ebooks directly in your VS Code editor with dark mode, customizable dis
 | `E` | Zoom in |
 | `W` / `A` / `S` / `D` | Pan up / left / down / right (when zoomed) |
 | `Ctrl+Scroll` | Zoom in/out |
+| `F` | Toggle collapse/restore panel content (panic button) |
 
 ## ⚙️ Settings
 
